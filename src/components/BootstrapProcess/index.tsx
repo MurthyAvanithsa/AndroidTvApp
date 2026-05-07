@@ -46,17 +46,34 @@ interface EndpointVersions {
 async function fetchEndpoint(
   url: string,
 ): Promise<{ data: any[]; latestUpdatedAt: string }> {
-  const res = await fetch(url);
-  const json = await res.json();
-  const items: any[] = json.data ?? [];
+  let allData: any[] = [];
+  let page = 1;
+  let pageCount = 1;
 
-  // Find the most recently updated item in the response
-  const latestUpdatedAt = items.reduce((latest, item) => {
+  do {
+    const separator = url.includes('?') ? '&' : '?';
+    // Using a large pageSize to minimize requests, though pagination logic handles any count
+    const pagedUrl = `${url}${separator}pagination[page]=${page}&pagination[pageSize]=100`;
+
+    console.log(`📡 Fetching page ${page} of ${pageCount} for: ${url.split('?')[0].split('/').pop()}`);
+    const res = await fetch(pagedUrl);
+    const json = await res.json();
+
+    if (json.data) {
+      allData = [...allData, ...json.data];
+    }
+
+    pageCount = json.meta?.pagination?.pageCount ?? 1;
+    page++;
+  } while (page <= pageCount);
+
+  // Find the most recently updated item in the merged response
+  const latestUpdatedAt = allData.reduce((latest, item) => {
     const itemDate = item.updatedAt ?? item.publishedAt ?? '';
     return itemDate > latest ? itemDate : latest;
   }, '');
 
-  return { data: items, latestUpdatedAt };
+  return { data: allData, latestUpdatedAt };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -123,11 +140,11 @@ const BootstrapProcess = ({ navigation }: any) => {
         if (!layoutId) throw new Error('Layout ID not found in API response');
 
         // ── 4. Fetch updatedAt metadata from all endpoints in parallel ────────
-        //       Uses pagination=0&fields[0]=updatedAt to get a lightweight
-        //       response — only timestamps, no full data yet
+        //       Uses sort=updatedAt:desc & limit=1 to efficiently get the
+        //       latest timestamp across all items without fetching full data.
         setLoadingStatus('Checking endpoint versions...');
 
-        const metaParams = `pagination[limit]=100&fields[0]=updatedAt&fields[1]=publishedAt`;
+        const metaParams = `sort[0]=updatedAt:desc&pagination[limit]=1&fields[0]=updatedAt&fields[1]=publishedAt`;
         const [screensMeta, presetsMeta, routesMeta, stylesMeta] =
           await Promise.all([
             fetch(
@@ -145,11 +162,11 @@ const BootstrapProcess = ({ navigation }: any) => {
           ]);
 
         // Find the latest updatedAt per endpoint
-        const getLatest = (json: any): string =>
-          (json.data ?? []).reduce((latest: string, item: any) => {
-            const d = item.updatedAt ?? item.publishedAt ?? '';
-            return d > latest ? d : latest;
-          }, '');
+        const getLatest = (json: any): string => {
+          const item = json.data?.[0];
+          if (!item) return '';
+          return item.updatedAt ?? item.publishedAt ?? '';
+        };
 
         const freshVersions: EndpointVersions = {
           layout: layoutUpdatedAt,
@@ -159,8 +176,7 @@ const BootstrapProcess = ({ navigation }: any) => {
           cardStyles: getLatest(stylesMeta),
         };
 
-        console.log('📋 Cached versions:', cachedVersions);
-        console.log('📋 Fresh  versions:', freshVersions);
+       
 
         // ── 5. Determine which endpoints actually changed ─────────────────────
         const changed = {
@@ -177,14 +193,13 @@ const BootstrapProcess = ({ navigation }: any) => {
 
         // ── 6. Nothing changed — use cache, bump TTL ─────────────────────────
         if (!anyChanged && cachedData) {
-          console.log('✅ All endpoints up-to-date — loading from cache');
+          console.log('✅ All endpoints up-to-date — loading from cache', cachedData.cardStyles);
           await AsyncStorage.setItem(BOOTSTRAP_FETCHED_KEY, String(now));
           setBootstrapData(cachedData);
           setLoadingStatus('Complete!');
           setTimeout(() => navigation.replace('Home'), 500);
           return;
         }
-
         // ── 7. Fetch only changed endpoints with full data ────────────────────
         setLoadingStatus('Loading updated resources...');
 
@@ -220,12 +235,7 @@ const BootstrapProcess = ({ navigation }: any) => {
                 }),
           ]);
 
-        console.log(
-          '🔄 Changed endpoints:',
-          Object.entries(changed)
-            .filter(([, v]) => v)
-            .map(([k]) => k),
-        );
+        
 
         // ── 8. Merge: fresh data where changed, cached data where unchanged ───
         const bootstrapData: BootstrapData = {
@@ -247,6 +257,7 @@ const BootstrapProcess = ({ navigation }: any) => {
             : cachedData?.topMenuConfig ?? parseMenuConfig(rawMenuConfig),
           lastUpdated: new Date().toISOString(),
         };
+        console.log('🎨 Card Styles:', stylesRes.data);
 
         // ── 9. Persist updated data + versions + timestamp ───────────────────
         await Promise.all([
@@ -261,9 +272,6 @@ const BootstrapProcess = ({ navigation }: any) => {
           AsyncStorage.setItem(BOOTSTRAP_FETCHED_KEY, String(now)),
         ]);
 
-        console.log('💾 Saved to AsyncStorage');
-        console.log('🏷️  Versions stored:', freshVersions);
-
         // ── 10. Push into context and navigate ───────────────────────────────
         setBootstrapData(bootstrapData);
         setLoadingStatus('Complete!');
@@ -275,10 +283,13 @@ const BootstrapProcess = ({ navigation }: any) => {
         try {
           const cachedDataRaw = await AsyncStorage.getItem(
             BOOTSTRAP_STORAGE_KEY,
-          );
+          );    
+          console.log("cached Data : ", cachedDataRaw);
           if (cachedDataRaw) {
+            const parsedData = JSON.parse(cachedDataRaw);
+            console.log("cached Data cardStyles : ", parsedData.cardStyles);
             console.warn('⚠️ Network error — falling back to cached data');
-            setBootstrapData(JSON.parse(cachedDataRaw));
+            setBootstrapData(parsedData);
             setLoadingStatus('Loaded from cache.');
             setTimeout(() => navigation.replace('Home'), 500);
             return;
@@ -290,7 +301,6 @@ const BootstrapProcess = ({ navigation }: any) => {
         setLoadingStatus('Failed to load configuration. Please restart.');
       }
     };
-
     runBootstrap();
   }, []);
 
