@@ -13,9 +13,10 @@ const PAGE_SIZE = 4; // Reveal 4 items at a time for local pagination
  * Reusable hook to fetch feed data from a URL with pagination support.
  * Now supports "Local Pagination" if the API doesn't provide a 'next' link.
  */
-export function useFeed(initialUrl: string | null | undefined) {
+export function useFeed(initialUrl: string | null | undefined, headers?: Record<string, string>) {
   const [allData, setAllData] = useState<any[]>([]); // Full list of items fetched so far
   const [displayedData, setDisplayedData] = useState<any[]>([]); // Slice of items currently visible
+  const [feedTitle, setFeedTitle] = useState<string | null>(null); // Top-level feed title
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,12 +33,16 @@ export function useFeed(initialUrl: string | null | undefined) {
     setError(null);
 
     try {
-      const response = await fetch(url);
+      console.log(`📡 useFeed: Fetching ${url}`);
+      const response = await fetch(url, headers ? { headers } : undefined);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status} for URL: ${url}`);
       }
       const json: FeedResponse = await response.json();
-      
+
+      // Capture the top-level feed title (e.g. "Featured Carousel")
+      if (json.title) setFeedTitle(json.title);
+
       const newItems = json.entry || json.items || [];
       const hasNext = !!json.next;
 
@@ -99,6 +104,7 @@ export function useFeed(initialUrl: string | null | undefined) {
 
   return { 
     data: displayedData, 
+    feedTitle,
     loading, 
     loadingMore, 
     error, 

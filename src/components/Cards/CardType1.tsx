@@ -7,12 +7,13 @@ import { CardType1Config } from "./CardType1Config";
 interface CardType1Props {
   item: any;
   cardStyleId: string;
-  width?: number; // Added support for grid-driven width
+  width?: number;
+  height?: number; // Computed from getCardSize() in HorizontalList
   isFirst?: boolean;
   isLast?: boolean;
 }
 
-export default function CardType1({ item, cardStyleId, width: overrideWidth, isFirst, isLast }: CardType1Props) {
+export default function CardType1({ item, cardStyleId, width: overrideWidth, height: overrideHeight, isFirst, isLast }: CardType1Props) {
   const { cardStyles } = useStrapiContext();
   const cardRef = useRef(null);
   const rawStyle = cardStyles[cardStyleId];
@@ -26,13 +27,12 @@ export default function CardType1({ item, cardStyleId, width: overrideWidth, isF
     );
   }
 
-  // Depending on Strapi structure, the fields might be flat or under 'card_type_1'
   const cardStyle = (rawStyle.card_type_1 || rawStyle) as CardType1Config;
 
-  // Calculate dimensions
   const { width: styleWidth, height: styleHeight, ratio } = calculateCardDimensions(cardStyle, overrideWidth);
   const finalWidth = overrideWidth || styleWidth || 200;
-  const finalHeight = overrideWidth ? (overrideWidth / ratio) : (styleHeight || 100);
+  // Use explicitly passed height, then aspect-ratio computed, then style height, then fallback
+  const finalHeight = overrideHeight || (overrideWidth ? Math.floor(overrideWidth / ratio) : (styleHeight || 100));
 
   const aspectRatio = parseAspectRatio(cardStyle.aspect_ratio);
   const imageUri = getImageFromMediaGroup(

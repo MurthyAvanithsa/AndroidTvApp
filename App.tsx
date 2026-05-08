@@ -7,7 +7,7 @@ import { StrapiProvider } from './src/context/StrapiContext';
 import BootstrapProcess from './src/components/BootstrapProcess';
 import TVAppScreen from './src/TVAppScreen';
 import GridScreen from './src/components/GridList/GridScreen';
-import HomeFeed from './src/components/Home/HomeFeed';
+import Curation from './src/components/Curation/Curation';
 
 const Stack = createNativeStackNavigator();
 
@@ -18,7 +18,7 @@ export default function App() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Bootstrap" component={BootstrapProcess} />
           <Stack.Screen name="Home" component={TVAppScreen} />
-          <Stack.Screen name="HomeFeed" component={HomeFeed} />
+          <Stack.Screen name="HomeFeed" component={Curation} />
           <Stack.Screen name="Grid" component={GridScreen} />
         </Stack.Navigator>
       </NavigationContainer>

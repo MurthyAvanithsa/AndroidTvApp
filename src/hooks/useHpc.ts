@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const HPC_URL = 'https://tbndsp-prod.trilogyapps.com/v1/hpc';
-const INITIAL_SIZE = 5;
-const INCREMENT_SIZE = 5;
+const INITIAL_SIZE = 4;
+const INCREMENT_SIZE = 4;
+
+// Preset names to exclude from the home feed
+const EXCLUDED_PRESET_NAMES = ['MyList', 'ContinueWatching'];
 
 interface HpcEntry {
   index: number;
@@ -32,15 +35,20 @@ export function useHpc() {
         
         const json = await response.json();
         const entries = json.entry || [];
-        
-        if (entries.length === 0) {
-          console.warn("⚠️ HPC: Feed returned successfully but contains 0 entries.");
-        }
 
-        setAllEntries(entries);
+        const filteredEntries = entries.filter(
+          (e: HpcEntry) => !EXCLUDED_PRESET_NAMES.includes(e.preset_name)
+        );
+
+        if (filteredEntries.length === 0) {
+          console.warn("⚠️ HPC: Feed returned successfully but contains 0 entries after filtering.");
+        }
+        console.log(`🚫 HPC: Excluded ${entries.length - filteredEntries.length} rails (${EXCLUDED_PRESET_NAMES.join(', ')}).`);
+
+        setAllEntries(filteredEntries);
         // Initially show only the first batch
-        setDisplayedData(entries.slice(0, INITIAL_SIZE));
-        console.log(`✅ HPC: Loaded ${entries.length} total rails. Displaying first ${INITIAL_SIZE}.`);
+        setDisplayedData(filteredEntries.slice(0, INITIAL_SIZE));
+        console.log(`✅ HPC: Loaded ${filteredEntries.length} rails after filter. Displaying first ${INITIAL_SIZE}.`);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch HPC');
         console.error("HPC fetch error:", err);
