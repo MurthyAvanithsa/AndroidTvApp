@@ -35,7 +35,7 @@ export function useHpc() {
         
         const json = await response.json();
         const entries = json.entry || [];
-
+console.log("entries: ", entries);
         const filteredEntries = entries.filter(
           (e: HpcEntry) => !EXCLUDED_PRESET_NAMES.includes(e.preset_name)
         );
@@ -49,6 +49,8 @@ export function useHpc() {
         // Initially show only the first batch
         setDisplayedData(filteredEntries.slice(0, INITIAL_SIZE));
         console.log(`✅ HPC: Loaded ${filteredEntries.length} rails after filter. Displaying first ${INITIAL_SIZE}.`);
+console.log("displayedData: ", filteredEntries.slice(0, INITIAL_SIZE));
+
       } catch (err: any) {
         setError(err.message || 'Failed to fetch HPC');
         console.error("HPC fetch error:", err);
@@ -60,23 +62,24 @@ export function useHpc() {
   }, []);
 
   const loadMore = useCallback(() => {
-    if (loading || loadingMore || displayedData.length >= allEntries.length) return;
+    if (loading || loadingMore) return;
 
     setLoadingMore(true);
     
     // Simulate a small delay for smoother UI transition if needed, 
     // or just append immediately.
     setTimeout(() => {
-      const currentCount = displayedData.length;
-      const nextCount = Math.min(currentCount + INCREMENT_SIZE, allEntries.length);
-      const nextBatch = allEntries.slice(0, nextCount);
-      
-      console.log(`🔄 HPC: Revealing rails ${currentCount + 1} to ${nextCount}...`);
-      setDisplayedData(nextBatch);
+      setDisplayedData(prevData => {
+        if (prevData.length >= allEntries.length) return prevData;
+        const currentCount = prevData.length;
+        const nextCount = Math.min(currentCount + INCREMENT_SIZE, allEntries.length);
+        console.log(`🔄 HPC: Revealing rails ${currentCount + 1} to ${nextCount}...`);
+        return allEntries.slice(0, nextCount);
+        
+      });
       setLoadingMore(false);
     }, 100); 
-  }, [displayedData, allEntries, loading, loadingMore]);
-
+  }, [loading, loadingMore, allEntries]);
   return {
     data: displayedData,
     loading,

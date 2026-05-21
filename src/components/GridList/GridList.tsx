@@ -22,8 +22,9 @@ export default function GridList({ config }: GridListProps) {
   const translationBottom = config.translation_bottom ?? 0;
 
   // Calculate card width to fit the grid perfectly
-  const totalGaps = (columnCount - 1) * columnGap;
-  const cardWidth = (SCREEN_WIDTH - translationLeft - translationRight - totalGaps) / columnCount;
+  let availableWidth = SCREEN_WIDTH - translationLeft - translationRight;
+  availableWidth = availableWidth - ((columnCount - 1) * columnGap);
+  const cardWidth = availableWidth / columnCount;
 
   // Extract the feed URL
   let feedUrl = null;

@@ -1,22 +1,33 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Text, View, Image, StyleSheet, Pressable, findNodeHandle } from "react-native";
 import { useStrapiContext } from "../../context/StrapiContext";
-import { calculateCardDimensions, getImageFromMediaGroup, parseAspectRatio, parseBorderRadius } from "../../utils/CardHelpers";
+import { calculateCardDimensions, getImageFromMediaGroup, parseAspectRatio, parseBorderRadius, scaleToLogical } from "../../utils/CardHelpers";
 import { CardType1Config } from "./CardType1Config";
 
 interface CardType1Props {
   item: any;
   cardStyleId: string;
   width?: number;
-  height?: number; // Computed from getCardSize() in HorizontalList
+  presetName?: string;
   isFirst?: boolean;
   isLast?: boolean;
+  onFocus?: () => void;
+  hasTVPreferredFocus?: boolean;
 }
 
-export default function CardType1({ item, cardStyleId, width: overrideWidth, height: overrideHeight, isFirst, isLast }: CardType1Props) {
+export default function CardType1({ item, cardStyleId, width: overrideWidth, presetName, isFirst, isLast, onFocus, hasTVPreferredFocus }: CardType1Props) {
   const { cardStyles } = useStrapiContext();
   const cardRef = useRef(null);
   const rawStyle = cardStyles[cardStyleId];
+  const [isFocused, setIsFocused] = useState(false);
+  const [node, setNode] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (cardRef.current) {
+      const handle = findNodeHandle(cardRef.current);
+      if (handle) setNode(handle);
+    }
+  }, []);
 
   if (!rawStyle) {
     console.warn(`⚠️ CardStyle not found for ID: ${cardStyleId}`);
@@ -29,35 +40,43 @@ export default function CardType1({ item, cardStyleId, width: overrideWidth, hei
 
   const cardStyle = (rawStyle.card_type_1 || rawStyle) as CardType1Config;
 
-  const { width: styleWidth, height: styleHeight, ratio } = calculateCardDimensions(cardStyle, overrideWidth);
-  const finalWidth = overrideWidth || styleWidth || 200;
-  // Use explicitly passed height, then aspect-ratio computed, then style height, then fallback
-  const finalHeight = overrideHeight || (overrideWidth ? Math.floor(overrideWidth / ratio) : (styleHeight || 100));
-
   const aspectRatio = parseAspectRatio(cardStyle.aspect_ratio);
+  const finalWidth = cardStyle.image_1_width ? scaleToLogical(cardStyle.image_1_width) : (overrideWidth || 300);
+  const finalHeight = cardStyle.image_1_height ? scaleToLogical(cardStyle.image_1_height) : (finalWidth / aspectRatio);
+    
   const imageUri = getImageFromMediaGroup(
     item?.media_group,
     cardStyle.image_1_source_key
   );
   const borderRadius = parseBorderRadius(cardStyle.image_1_rounded_corners_radius);
+  const borderColor = cardStyle.background_rectangle_color || 'transparent';
+  // console.log("CardType1: ", cardStyle);
+  console.log(`[${presetName || 'Unknown Preset'}] Card Width:`, finalWidth, "Height:", finalHeight);
   return (
     <Pressable
       ref={cardRef}
-      nextFocusLeft={isFirst ? findNodeHandle(cardRef.current) : undefined}
-      nextFocusRight={isLast ? findNodeHandle(cardRef.current) : undefined}
+            onFocus={() => {
+              setIsFocused(true);
+              onFocus?.();
+            }}
+            onBlur={() => setIsFocused(false)}
+            // onPress={handlePress}
+            // Roku logic: Prevents focus from leaving row bounds incorrectly
+            nextFocusLeft={isFirst ? node : undefined}
+            nextFocusRight={isLast ? node : undefined}
       style={({ focused }) => [
         styles.container,
         {
-          marginTop:40,
-          marginLeft:40,
-          backgroundColor: cardStyle.background_rectangle_color ?? '#1a1a1a',
-          borderWidth: focused ? 4 : 0,
-          borderColor: '#ffffff',
-          transform: [{ scale: focused ? 1.05 : 1 }],
-          zIndex: focused ? 10 : 1,
-          borderRadius: cardStyle.image_1_enable_rounded_corners
-            ? borderRadius
-            : undefined,
+          width: finalWidth,
+          height: finalHeight,
+          // marginTop:10,
+          // marginLeft:20,
+          // backgroundColor: cardStyle.background_rectangle_color ?? '#1a1a1a',
+          borderWidth: focused ? 4 : 2,
+          borderColor:  focused ? 'white' : borderColor,
+          // transform: [{ scale: focused ? 1.05 : 1 }],
+          // zIndex: focused ? 10 : 1,
+          borderRadius: borderRadius,
         }
       ]}
     >
@@ -67,10 +86,9 @@ export default function CardType1({ item, cardStyleId, width: overrideWidth, hei
           style={[
             styles.image,
             {
-              width: '100%',
-              aspectRatio: aspectRatio,
-              top: cardStyle.image_1_translation_top ?? 0,
-              left: cardStyle.image_1_translation_left ?? 0,
+              width: cardStyle.image_1_width?scaleToLogical(cardStyle.image_1_width):'100%',
+              aspectRatio:aspectRatio,
+              borderRadius:borderRadius,
             }
           ]}
           resizeMode={cardStyle.image_1_object_fit === 'ScaleToFit' ? 'contain' : 'cover'}
@@ -82,9 +100,9 @@ export default function CardType1({ item, cardStyleId, width: overrideWidth, hei
           styles.label,
           {
             color: cardStyle.label_1_color ?? '#fff',
-            top: cardStyle.label_1_translation_top,
-            left: cardStyle.label_1_translation_left,
-            width: cardStyle.label_1_width ?? '100%',
+            top: scaleToLogical(cardStyle.label_1_translation_top ?? 0),
+            left: scaleToLogical(cardStyle.label_1_translation_left ?? 0),
+            width: cardStyle.label_1_width ? scaleToLogical(cardStyle.label_1_width) : '100%',
           }
         ]} numberOfLines={cardStyle.label_1_lines}>
           {cardStyle.label_1_use_custom_text ? cardStyle.label_1_custom_text : item?.title}
@@ -96,10 +114,9 @@ export default function CardType1({ item, cardStyleId, width: overrideWidth, hei
 
 const styles = StyleSheet.create({
   container: {
-    // overflow: 'hidden',
-    // position: 'relative',
-    width: 200,
-    height: 115,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
   },
   image: {
     position: 'absolute',

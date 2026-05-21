@@ -16,17 +16,21 @@ import CurationBlockRenderer from './CurationBlockRenderer';
 export default function Curation() {
   const { data, loading, loadingMore, error, loadMore } = useHpc();
   const { screenPresets } = useStrapiContext();
-
+  console.log('🔑 All Available Strapi Preset Keys:', Object.keys(screenPresets));
+console.log('🔐 HPC Feed Data:', JSON.stringify(data, null, 2));
   const renderItem = ({ item }: { item: any }) => {
     const { preset_name, feed_url } = item;
-
+// console.log("preset_name: ",preset_name);
     // Normalize preset key (matches parseScreenPresets key logic)
     // e.g. "16x9-NoTitle" → "16x9NoTitle"
-    const presetKey = preset_name?.replace(/-([a-zA-Z0-9])/g, (_: string, c: string) =>
+    const basePresetKey = preset_name?.replace(/-([a-zA-Z0-9])/g, (_: string, c: string) =>
       c.toUpperCase()
     );
+    
+    // First try the exact preset name, then try falling back to the Android-specific preset name
+    const presetKey = screenPresets[basePresetKey] ? basePresetKey : `${basePresetKey}Android`;
     const preset = screenPresets[presetKey];
-
+// console.log("preset: ",preset); 
     if (!preset) {
       console.warn(`⚠️ Curation: No preset found for "${preset_name}" (key: "${presetKey}")`);
       return null;
@@ -38,17 +42,15 @@ export default function Curation() {
       console.warn(`⚠️ Curation: Preset "${preset_name}" has no blocks.`);
       return null;
     }
-
     return (
       <View style={styles.railContainer}>
         {preset_blocks.map((block: any, blockIndex: number) => (
           <CurationBlockRenderer
             key={`${preset_name}-block-${blockIndex}`}
             component={block.component}
+            isFirstBlock={item.index === 0 && blockIndex === 0}
             config={{
               ...block.config,
-              // Always use the HPC feed_url — it is the dynamic, per-rail URL.
-              // The preset block may have a static/default feed_url, but HPC overrides it.
               feed: {
                 ...block.config?.feed,
                 feed_url: feed_url,
@@ -96,8 +98,11 @@ export default function Curation() {
         ListFooterComponent={renderFooter}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={false}
-        windowSize={10}
+        // Lazy loading optimizations:
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={5}
+        removeClippedSubviews={true}
       />
     </View>
   );

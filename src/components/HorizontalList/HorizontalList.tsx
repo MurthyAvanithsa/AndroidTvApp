@@ -1,50 +1,56 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, useWindowDimensions, TVFocusGuideView } from 'react-native';
 import { useFeed } from '../../hooks/useFeed';
 import CardType1 from '../Cards/CardType1';
 import CardType2 from '../Cards/CardType2';
+import { HorizontalListConfig } from './HorizontalListProps';
 
 interface HorizontalListProps {
-  config: any;
+  config: HorizontalListConfig;
+  hasTVPreferredFocus?: boolean;
+  componentName?: string;
 }
 
-export default function HorizontalList({ config }: HorizontalListProps) {
+export default function HorizontalList({ config, hasTVPreferredFocus, componentName }: HorizontalListProps) {
   const { width: screenWidth } = useWindowDimensions();
-  // ─── Card Size Calculation (ported from Roku getCardSize()) ───────────────────
-  // Roku: totalAvailableWidth = deviceInfo.uiResolutionWidth - config.translationLeft
-  //       availableWidth = totalAvailableWidth - (cellsPerView * itemSpacing) - (3 * peekOffset)
-  //       cardWidth = Int(availableWidth / cellsPerView)
-  //       cardHeight = Int(cardWidth / aspectRatio[0] * aspectRatio[1])
+  const flatListRef = useRef<FlatList>(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(0);
   function getCardSize(): { cardWidth: number; cardHeight: number } {
-    const cellsPerView: number = config.cells_per_view;
-    const cellGap: number = config.cell_gap;
-    const peekOffset: number = config.peek_offset;
-    const translationLeft: number = config.list_translation_left;
+    // Featured rails and Inline features should default to 1 card per view (full width) if not specified
+    const isFullWidthRail = componentName === 'FeaturedHomeRail' || componentName === 'FeaturedCarousel' || componentName === 'InlineFeature';
+    const cellsPerView: number = config.cells_per_view ?? (isFullWidthRail ? 1 : 3);
+    
+    const cellGap: number = config.cell_gap ?? 20;
+    const translationLeft: number = config.list_translation_left ?? 0;
+    const peekOffset: number = config.peek_offset ?? 0;
+    const itemSpacing: number = cellGap;
 
-    // Parse aspect ratio from card_style config string e.g. "aspect_16:9" → [16, 9]
     const aspectRatioStr: string =
-      config.card_style?.card_type_1?.aspect_ratio ||
+      config.card_style?.card_type_1?.aspect_ratio || config.card_style?.card_type_2?.aspect_ratio ||
       config.card_style?.aspect_ratio ||
       'aspect_16:9';
+    console.log("aspectRatioStr: ", aspectRatioStr);
     const match = aspectRatioStr.match(/(\d+)[x:](\d+)/);
     const arW = match ? parseInt(match[1], 10) : 16;
     const arH = match ? parseInt(match[2], 10) : 9;
 
     const totalAvailableWidth = screenWidth - translationLeft;
-    const availableWidth =
-      totalAvailableWidth -
-      cellsPerView * cellGap -   // gaps between cards
-      3 * peekOffset;             // peek on both sides + one extra (Roku formula)
+    const availableWidth = totalAvailableWidth - (cellsPerView * itemSpacing) - (3 * peekOffset);
+    
+    const cardWidth = availableWidth / cellsPerView;
+    let cardHeight = cardWidth * (arH / arW);
 
-    const cardWidth = Math.floor(availableWidth / cellsPerView);
-    const cardHeight = Math.floor((cardWidth / arW) * arH);
+    // Roku logic: calculateFocusHeight
+    if (config.focus_height && config.focus_height > cardHeight) {
+      cardHeight = config.focus_height;
+    }
 
     return { cardWidth, cardHeight };
   }
 
   const { cardWidth, cardHeight } = getCardSize();
-  // Extract the feed URL. 
-  // It may be directly under config.feed, or nested in the card_style layout (as seen in the Roku menu payload)
+
   let feedUrl = null;
   if (config.feed?.feed_url) {
     feedUrl = config.feed.feed_url;
@@ -52,16 +58,30 @@ export default function HorizontalList({ config }: HorizontalListProps) {
     feedUrl = config.card_style.layout.roku_menu.feed.feed_url;
   }
 
-  const { data, feedTitle, loading, loadingMore, error, loadMore } = useFeed(feedUrl);
-  // console.log("HorizontalList feedUrl:", feedUrl);
-  console.log("HorizontalList config:", config);
-  // console.log("Playlist Url:", data)
-  // console.log("HorizontalList loading:", loading);
-  // console.log("HorizontalList loadingMore:", loadingMore);
-  // console.log("HorizontalList error:", error);
-  // console.log("HorizontalList loadMore:", loadMore);
+  const { data, feedTitle, loading, loadingMore, error, loadMore, hasMore } = useFeed(feedUrl, {
+    pageSize: config.lazy_load_item_count ?? 4,
+    itemLimit: config.item_limit ?? 0
+  });
+
+  useEffect(() => {
+    if (config.enable_auto_scroll && data?.length > 0 && !isFocused) {
+      const interval = setInterval(() => {
+        setFocusedIndex((prev) => {
+          const next = prev >= data.length - 1 ? 0 : prev + 1;
+          flatListRef.current?.scrollToIndex({ index: next, animated: true });
+          return next;
+        });
+      }, (config.auto_scroll_interval ?? 5) * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [config.enable_auto_scroll, config.auto_scroll_interval, data, isFocused]);
+  // if (config.name == "FeaturedHomeRail") {
+  //   console.log('HorizontalList config:', config.card_style);
+  //   console.log('HorizontalList data:', data);
+  // }
+
   const renderFooter = () => {
-    if (!loadingMore) return null;
+    if (!hasMore || !loadingMore) return null;
     return (
       <View style={styles.footerLoader}>
         <ActivityIndicator size="small" color="#ffffff" />
@@ -75,17 +95,22 @@ export default function HorizontalList({ config }: HorizontalListProps) {
     const cardType = cardStyle.card_type;
     const styleId = cardStyle.documentId || cardStyle.id?.toString();
 
-    // Focus trapping logic:
     const isFirst = index === 0;
     const isLast = index === data.length - 1;
-
+    console.log("isLast: ", isLast);
+    console.log("isFirst: ", isFirst);
+    
     const commonProps = {
       item,
       cardStyleId: styleId,
       width: cardWidth,
-      height: cardHeight,
+      presetName: config.name,
       isFirst,
       isLast,
+      onFocus: () => {
+        setFocusedIndex(index);
+      },
+      hasTVPreferredFocus: hasTVPreferredFocus && index === 0,
     };
 
     switch (cardType) {
@@ -109,16 +134,16 @@ export default function HorizontalList({ config }: HorizontalListProps) {
     }
   };
 
+  // FIX: use computed cardHeight for the loading placeholder so layout doesn't shift
   if (loading) {
     return (
-      <View style={styles.loaderContainer}>
+      <View style={[styles.loaderContainer, { height: cardHeight }]}>
         <ActivityIndicator size="large" color="#ffffff" />
       </View>
     );
   }
 
   if (error) {
-    // Silently skip rails that are unauthorized (401) — don't show a red error
     if (error.includes('401')) return null;
     return (
       <View style={styles.errorContainer}>
@@ -128,31 +153,24 @@ export default function HorizontalList({ config }: HorizontalListProps) {
   }
 
   if (!data || data.length === 0) {
-    return null; // Don't render empty lists
+    return null;
   }
-
-  return (
-    <View style={[
-      styles.container,
-      {
-        // Outer row positioning — how far this rail sits from the top/bottom of its container
-        marginTop: config.list_translation_top ?? 0,
-        marginBottom: config.row_gap ?? 60,
-        marginLeft: config.list_translation_left ?? 0,
-        marginRight: config.list_translation_right ?? 0,
-        paddingBottom: config.list_translation_bottom ?? 0,
-      }
-    ]}>
-      {/* Title — sourced from the feed response (feedTitle), with config.name as fallback */}
+// console.log("cardHeight: ", cardHeight);
+return(
+    <TVFocusGuideView 
+      autoFocus
+      style={styles.container}
+    >
+      <View 
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+      >
       {config.enable_title && (
         <Text style={[
           styles.title,
           {
-            color: config.title_color || '#ffffff',
-            // Space between title and the list below it
-            marginBottom: config.title_translation_bottom ?? 10,
-            // Horizontal indent of the title (e.g. to align with peek_offset)
-            marginLeft: config.title_translation_left ?? 0,
+            color: isFocused ? (config.title_focused_color || '#ffffff') : (config.title_color || '#ffffff'),
+            
           }
         ]}>
           {config.title_use_custom_text
@@ -161,29 +179,40 @@ export default function HorizontalList({ config }: HorizontalListProps) {
         </Text>
       )}
 
-      {/* Horizontal List */}
-      <FlatList
-        horizontal
-        data={data}
-        keyExtractor={(item, index) => item.id?.toString() || index.toString()}
-        renderItem={renderItem}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-        showsHorizontalScrollIndicator={false}
-        // Critical for TV focus stability:
-        removeClippedSubviews={false}
-        windowSize={10}
-        contentContainerStyle={{
-          // Gap between each card
-          gap: config.cell_gap ?? 20,
-          // peek_offset: the left padding so the first card is indented
-          // and the previous/next cards peek in from the edges
-          paddingLeft: config.peek_offset ?? 0,
-          paddingRight: config.peek_offset ?? 0,
-        }}
-      />
-    </View>
+      
+        <FlatList
+          ref={flatListRef}
+          horizontal
+          data={data}
+          keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+          renderItem={renderItem}
+          onEndReached={hasMore ? loadMore : null}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          showsHorizontalScrollIndicator={false}
+          removeClippedSubviews={false}
+          windowSize={10}
+          contentContainerStyle={{
+            gap: 10,
+            // marginTop: 5,
+          }}
+        />
+      {/* Pagination Dots (Equivalent to applyPaginationDotsStyles) */}
+      {config.enable_pagination_dots && data && (
+        <View style={styles.dotContainer}>
+          {data.slice(0, 10).map((_, i) => (
+            <View 
+              key={i} 
+              style={[
+                styles.dot, 
+                { backgroundColor: i === focusedIndex ? (config.pagination_dots_selected_color || '#ffffff') : (config.pagination_dots_unselected_color || '#666666') }
+              ]} 
+            />
+          ))}
+        </View>
+      )}
+      </View>
+    </TVFocusGuideView>
   );
 }
 
@@ -192,7 +221,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   loaderContainer: {
-    height: 200,
+    // FIX: height is now set dynamically from cardHeight (see above)
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -212,11 +241,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    paddingHorizontal: 20,
+    paddingBottom:20
+    // paddingHorizontal: 20,
   },
   placeholderCard: {
-    width: 200,
-    height: 100,
     backgroundColor: '#333',
     justifyContent: 'center',
     alignItems: 'center',
@@ -225,5 +253,16 @@ const styles = StyleSheet.create({
   placeholderText: {
     color: '#fff',
     fontSize: 14,
+  },
+  dotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 4,
   }
 });

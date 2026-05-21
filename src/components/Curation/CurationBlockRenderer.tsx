@@ -19,15 +19,20 @@ import GridList from '../GridList/GridList';
 
 interface CurationBlockRendererProps {
   component: string;
-  config: Record<string, any>;
+  config: any;
+  isFirstBlock?: boolean;
 }
 
-export default function CurationBlockRenderer({ component, config }: CurationBlockRendererProps) {
+export default function CurationBlockRenderer({ component, config, isFirstBlock  }: CurationBlockRendererProps) {
+  // console.log("CurationBlockRenderer config:", component);
+  // console.log("CurationBlockRenderer config:", config);
+  //   console.log("CurationBlockRenderer isFirstBlock:", isFirstBlock);
   switch (component) {
+   
     case 'HorizontalList':
-      return <HorizontalList config={config} />;
+      return <HorizontalList config={config}  />;
 
-    case 'ResponsiveGrid':
+
     case 'GridList':
       return <GridList config={config} />;
 

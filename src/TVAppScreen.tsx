@@ -73,7 +73,7 @@ export default function TVAppScreen({ navigation }: any) {
         </Pressable>
       </View>
       
-      <View style={styles.cardSection}>
+      {/* <View style={styles.cardSection}>
         <Text style={styles.sectionHeader}>Card Type 1</Text>
         {item1 && item1.length > 0 ? (
           <CardType1 item={item1[0]} cardStyleId="rqs7myf1ootmbki3d4ezk4x4" />
@@ -89,12 +89,29 @@ export default function TVAppScreen({ navigation }: any) {
         ) : (
           <Text style={{ color: '#fff' }}>No items for Card 2</Text>
         )}
+      </View> */}
+      <View style={styles.cardSection}>
+        <Text style={styles.sectionHeader}>Card Type 1</Text>
+        {item1 && item1.length > 0 ? (
+          <CardType1 item={item1[0]} cardStyleId="u1gsxu7llh1165ay1490fpxq" />
+        ) : (
+          <Text style={{ color: '#fff' }}>No items for Card 1</Text>
+        )}
       </View>
 
-      <View style={[styles.cardSection, { width: '100%', alignItems: 'flex-start' }]}>
+      <View style={styles.cardSection}>
+        <Text style={styles.sectionHeader}>Card Type 2</Text>
+        {item2 && item2.length > 0 ? (
+          <CardType2 item={item2[0]} cardStyleId="v6pen2u05jdbiiijykl6tsll" />
+        ) : (
+          <Text style={{ color: '#fff' }}>No items for Card 2</Text>
+        )}
+      </View>
+
+      {/* <View style={[styles.cardSection, { width: '100%', alignItems: 'flex-start' }]}>
         <Text style={[styles.sectionHeader, { paddingHorizontal: 20 }]}>Horizontal List Component</Text>
         <HorizontalList config={MOCK_HLIST_CONFIG} />
-      </View>
+      </View> */}
     </ScrollView>
   );
 }

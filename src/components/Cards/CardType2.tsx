@@ -1,36 +1,51 @@
-import React, { useRef } from 'react';
-import { Text, View, Image, StyleSheet, Pressable, findNodeHandle } from "react-native";
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Text, 
+  View, 
+  Image, 
+  StyleSheet, 
+  Pressable, 
+  findNodeHandle 
+} from "react-native";
 import { useStrapiContext } from "../../context/StrapiContext";
-import { calculateCardDimensions, getImageFromMediaGroup, getBorderRadius, getAspectRatioValue } from "../../utils/CardHelpers";
+import { 
+  calculateCardDimensions, 
+  getImageFromMediaGroup, 
+  getBorderRadius, 
+  getAspectRatioValue, 
+  scaleToLogical 
+} from "../../utils/CardHelpers";
 import { getStringByPath } from "../../utils/ObjectUtils";
-import { CardType2Config } from "./CardType2Config";
 
 interface CardType2Props {
   item: any;
   cardStyleId: string;
   width?: number;
+  presetName?: string;
   isFirst?: boolean;
   isLast?: boolean;
+  onFocus?: () => void;
 }
 
-export default function CardType2({ item, cardStyleId, width: overrideWidth, isFirst, isLast }: CardType2Props) {
+export default function CardType2({ item, cardStyleId, width: overrideWidth, presetName, isFirst, isLast, onFocus }: CardType2Props) {
   const { cardStyles } = useStrapiContext();
-  const rawStyle = cardStyles[cardStyleId];
+  const [isFocused, setIsFocused] = useState(false);
   const cardRef = useRef(null);
+  const [node, setNode] = useState<number | undefined>(undefined);
 
-  if (!rawStyle) {
-    console.warn(`⚠️ CardStyle not found for ID: ${cardStyleId}`);
-    return (
-      <View style={styles.fallback}>
-        <Text style={{ color: '#fff' }}>Style {cardStyleId} missing</Text>
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (cardRef.current) {
+      const handle = findNodeHandle(cardRef.current);
+      if (handle) setNode(handle);
+    }
+  }, []);
 
-  // Depending on Strapi structure, the fields might be flat or under 'card_type_2'
-  const cardStyle = (rawStyle.card_type_2 || rawStyle) as CardType2Config;
-const aspectRatio = getAspectRatioValue(cardStyle.aspect_ratio);
-console.log("Aspect Ratio: ", aspectRatio);
+  const rawStyle = cardStyles[cardStyleId];
+  if (!rawStyle) return null;
+
+  const cardStyle = (rawStyle.card_type_2 || rawStyle);
+
+  // --- Data Mapping (Equivalent to Roku mapEntryData) ---
   const image1Uri = getImageFromMediaGroup(item?.media_group, cardStyle.image_1_source_key);
   const image2Uri = getImageFromMediaGroup(item?.media_group, cardStyle.image_2_source_key || '');
 
@@ -46,159 +61,118 @@ console.log("Aspect Ratio: ", aspectRatio);
     ? cardStyle.label_3_custom_text 
     : getStringByPath(item, cardStyle.label_3_source_key || '');
 
-  const { width: styleWidth, height: styleHeight, ratio } = calculateCardDimensions(cardStyle, overrideWidth);
-  const finalWidth = overrideWidth || styleWidth || 200;
-  const finalHeight = overrideWidth ? (overrideWidth / ratio) : (styleHeight || 100);
-  
-  const backgroundBorderRadius = getBorderRadius(
-    cardStyle.background_rectangle_enable_rounded_corners, 
-    cardStyle.background_rectangle_rounded_corners_radius
-  );
+  // --- Layout Calculations ---
+  const finalWidth = cardStyle.image_1_width ? scaleToLogical(cardStyle.image_1_width) : (overrideWidth || 300);
+  const finalHeight = cardStyle.image_1_height ? scaleToLogical(cardStyle.image_1_height) : (finalWidth / cardStyle.aspect_ratio);
+  const borderColor = cardStyle.background_rectangle_color || 'transparent';
+  // console.log(`[${presetName || 'Unknown Preset'}] Card Width:`, finalWidth, "Height:", finalHeight);
 
-  const image1BorderRadius = getBorderRadius(
-    cardStyle.image_1_enable_rounded_corners, 
-    cardStyle.image_1_rounded_corners_radius
-  );
-  // console.log("Image1BorderRadius: ", image1BorderRadius);
-  const image2BorderRadius = getBorderRadius(
-    cardStyle.image_2_enable_rounded_corners, 
-    cardStyle.image_2_rounded_corners_radius
-  );
-  // console.log("Image2BorderRadius: ", image2BorderRadius);
+  // // Apply 1x1 multiplier matching HorizontalList logic
+  // if (ratio === 1) {
+  //   finalHeight = finalHeight * 2.35;
+  // }
 
-  // console.log("margin left: ", cardStyle.image_2_translation_left);
-  // console.log("Image2uri, sourcekey: ", image2Uri, cardStyle.image_2_source_key);
-  // console.log("Calculated dimensions in card type2:", width, "x", height, "Ratio:", cardStyle.aspect_ratio);
+  // Allow focus_height override if specified in the card style
+  // if (cardStyle.focus_height && cardStyle.focus_height > finalHeight) {
+  //   finalHeight = cardStyle.focus_height;
+  // }
 
-  return (
+  // Handle Selection (Equivalent to onItemSelectedChanged)
+  // const handlePress = () => {
+  //   if (setActiveEntry && navigateToScreen) {
+  //     setActiveEntry(item);
+  //     navigateToScreen("Details"); 
+  //   }
+  // };
+// console.log("border radius: ", getBorderRadius(cardStyle.image_1_enable_rounded_corners, cardStyle.image_1_rounded_corners_radius));
+return (
     <Pressable
       ref={cardRef}
-      nextFocusLeft={isFirst ? findNodeHandle(cardRef.current) : undefined}
-      nextFocusRight={isLast ? findNodeHandle(cardRef.current) : undefined}
-      style={({ focused }) => [
+      onFocus={() => {
+        setIsFocused(true);
+        onFocus?.();
+      }}
+      onBlur={() => setIsFocused(false)}
+      // onPress={handlePress}
+      // Roku logic: Prevents focus from leaving row bounds incorrectly
+      nextFocusLeft={isFirst ? node : undefined}
+      nextFocusRight={isLast ? node : undefined}
+      style={[
         styles.container,
         {
           width: finalWidth,
           height: finalHeight,
-          backgroundColor: cardStyle.background_rectangle_color ?? 'transparent',
-          borderRadius: backgroundBorderRadius,
-          borderWidth: focused ? 4 : 0,
-          borderColor: '#ffffff',
-          transform: [{ scale: focused ? 1.05 : 1 }],
-          zIndex: focused ? 10 : 1,
+          borderRadius: getBorderRadius(cardStyle.image_1_enable_rounded_corners, cardStyle.image_1_rounded_corners_radius),
+          borderWidth: isFocused ? 4 : 2,
+          borderColor: isFocused ? 'white' : borderColor,
+          // transform: [{ scale: isFocused ? 1.05 : 1 }],
+          // zIndex: isFocused ? 10 : 1,
         }
       ]}
     >
-      {/* Image 1 (Background) */}
-      {cardStyle.show_image_1 && image1Uri ? (
+      {/* Background Image (Image1) */}
+      {cardStyle.show_image_1 && image1Uri && (
         <Image
           source={{ uri: image1Uri }}
           style={[
             styles.absolute,
             {
-              width: '100%',
-              aspectRatio: ratio,
-              top: cardStyle.image_1_translation_top ?? 0,
-              left: cardStyle.image_1_translation_left ?? 0,
-              borderRadius: image1BorderRadius,
+              width: cardStyle.image_1_width ? scaleToLogical(cardStyle.image_1_width) : '100%',
+              height: cardStyle.image_1_height ? scaleToLogical(cardStyle.image_1_height) : (finalWidth / cardStyle.aspect_ratio),
+              marginTop: scaleToLogical(cardStyle.image_1_translation_top ?? 0),
+              marginLeft: scaleToLogical(cardStyle.image_1_translation_left ?? 0),
+              // borderRadius: getBorderRadius(cardStyle.image_1_enable_rounded_corners, cardStyle.image_1_rounded_corners_radius),
             }
           ]}
           resizeMode={cardStyle.image_1_object_fit === 'ScaleToFit' ? 'contain' : 'cover'}
         />
-      ) : null}
+      )}
 
-      {/* Overlay Image (e.g. Gradient) */}
-      {/* {cardStyle.image_1_overlay_image ? (
-        <Image
-           // Note: In a real app, this might be a local path or URL. 
-           // If it's pkg:/, it's a Roku convention. For RN, we'd need a mapping.
-          source={{ uri: cardStyle.image_1_overlay_image.replace('pkg:/', '') }} 
-          style={styles.overlay}
-        />
-      ) : null} */}
-
-      {/* Image 2 (Logo) */}
-      {cardStyle.show_image_2 && image2Uri ? (
+      {/* Logo/Secondary Image (Image2) */}
+      {cardStyle.show_image_2 && image2Uri && (
         <Image
           source={{ uri: image2Uri }}
           style={[
             styles.absolute,
             {
-              width: cardStyle.image_2_width ?? 290,
-              aspectRatio: ratio,
-              marginTop: cardStyle.image_2_translation_top ?? 40,
-              marginLeft:  90,
-              borderRadius: image2BorderRadius,
-            }
-          ]}
-          resizeMode={cardStyle.image_2_object_fit === 'ScaleToFit' ? 'contain' : 'cover'}
-        />
-      ) : null}
-
-      {/* Label 1 */}
-      {cardStyle.show_label_1 && label1Text ? (
-        <Text style={[
-          styles.label,
-          {
-            color: cardStyle.label_1_color ?? '#fff',
-            top: cardStyle.label_1_translation_top ?? 0,
-            left: cardStyle.label_1_translation_left ?? 0,
-            width: cardStyle.label_1_width ?? '100%',
-            fontFamily: cardStyle.label_1_font_family,
-          }
-        ]} numberOfLines={cardStyle.label_1_lines ?? 1}>
-          {label1Text}
-        </Text>
-      ) : null}
-
-      {/* Label 2 */}
-      {cardStyle.show_label_2 && label2Text ? (
-        <Text style={[
-          styles.label,
-          {
-            color: cardStyle.label_2_color ?? '#fff',
-            top: cardStyle.label_2_translation_top ?? 0,
-            left: cardStyle.label_2_translation_left ?? 0,
-            width: cardStyle.label_2_width ?? '100%',
-            fontFamily: cardStyle.label_2_font_family,
-          }
-        ]} numberOfLines={cardStyle.label_2_lines ?? 2}>
-          {label2Text}
-        </Text>
-      ) : null}
-
-      {/* Label 3 */}
-      {cardStyle.show_label_3 && label3Text ? (
-        <Text style={[
-          styles.label,
-          {
-            color: cardStyle.label_3_color ?? '#fff',
-            top: cardStyle.label_3_translation_top ?? 0,
-            left: cardStyle.label_3_translation_left ?? 0,
-            width: cardStyle.label_3_width ?? '100%',
-            fontFamily: cardStyle.label_3_font_family,
-          }
-        ]} numberOfLines={cardStyle.label_3_lines ?? 1}>
-          {label3Text}
-        </Text>
-      ) : null}
-
-      {/* Badge */}
-      {cardStyle.show_badge && cardStyle.badge_url ? (
-        <Image
-          source={{ uri: cardStyle.badge_url }}
-          style={[
-            styles.absolute,
-            {
-              width: cardStyle.badge_width ?? 200,
-              height: cardStyle.badge_height ?? 70,
-              top: cardStyle.badge_translation_top ?? 0,
-              left: cardStyle.badge_translation_left ?? 0,
+              width: cardStyle.image_2_width ? scaleToLogical(cardStyle.image_2_width) : '50%',
+              height: cardStyle.image_2_height ? scaleToLogical(cardStyle.image_2_height) : (finalWidth / cardStyle.aspect_ratio),
+              marginTop: scaleToLogical(cardStyle.image_2_translation_top ?? 0),
+              marginLeft: scaleToLogical(cardStyle.image_2_translation_left ?? 0),
+              borderRadius: getBorderRadius(cardStyle.image_2_enable_rounded_corners, cardStyle.image_2_rounded_corners_radius),
             }
           ]}
           resizeMode="contain"
         />
-      ) : null}
+      )}
+
+      {/* Labels (Equivalent to applyStyles/applyFocusedStyles logic) */}
+      {cardStyle.show_label_1 && (
+        <Text style={[
+          styles.label,
+          {
+            color: isFocused ? (cardStyle.label_1_focused_color || '#fff') : (cardStyle.label_1_color || '#fff'),
+            marginTop: scaleToLogical(cardStyle.label_1_translation_top || 0),
+            marginLeft: scaleToLogical(cardStyle.label_1_translation_left || 0),
+          }
+        ]}>
+          {label1Text}
+        </Text>
+      )}
+
+      {/* Label 2 */}
+      {cardStyle.show_label_2 && (
+        <Text style={[
+          styles.label,
+          {
+            color: isFocused ? (cardStyle.label_2_focused_color || '#ccc') : (cardStyle.label_2_color || '#ccc'),
+            marginTop: scaleToLogical(cardStyle.label_2_translation_top || 30),
+            marginLeft: scaleToLogical(cardStyle.label_2_translation_left || 0),
+          }
+        ]}>
+          {label2Text}
+        </Text>
+      )}
     </Pressable>
   );
 }
@@ -207,22 +181,14 @@ const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
     position: 'relative',
+    marginRight: 10,
   },
   absolute: {
     position: 'absolute',
   },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
   label: {
     position: 'absolute',
-    fontSize: 24, // Default base size, should ideally come from font_family mapping
-  },
-  fallback: {
-    width: 400,
-    height: 225,
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontSize: 18,
+    fontWeight: '600',
   }
 });

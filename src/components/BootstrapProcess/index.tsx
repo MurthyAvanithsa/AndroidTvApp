@@ -24,10 +24,11 @@ import {
 // ─── Cache Config ─────────────────────────────────────────────────────────────
 
 const BOOTSTRAP_STORAGE_KEY = 'bootstrap_data';
-const BOOTSTRAP_VERSIONS_KEY = 'bootstrap_versions'; // per-endpoint updatedAt map
+
 const BOOTSTRAP_FETCHED_KEY = 'bootstrap_fetched_at';
 
-const TTL_MS = 30 * 60 * 1000; // 30 minutes
+// const TTL_MS = 30 * 60 * 1000; // 30 minutes
+const TTL_MS = 1 * 60 * 1000; // 15 minutes for testing
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,9 +56,10 @@ async function fetchEndpoint(
     // Using a large pageSize to minimize requests, though pagination logic handles any count
     const pagedUrl = `${url}${separator}pagination[page]=${page}&pagination[pageSize]=100`;
 
-    console.log(`📡 Fetching page ${page} of ${pageCount} for: ${url.split('?')[0].split('/').pop()}`);
+    console.log(`📡 Fetching URL: ${pagedUrl}`);
     const res = await fetch(pagedUrl);
     const json = await res.json();
+    console.log(`📦 Data from ${url.split('?')[0].split('/').pop()} (Page ${page}):`, json.data);
 
     if (json.data) {
       allData = [...allData, ...json.data];
@@ -89,26 +91,15 @@ const BootstrapProcess = ({ navigation }: any) => {
         console.log('🚀 BOOTSTRAP START');
 
         // ── 1. Load cache ────────────────────────────────────────────────────
-        const [cachedDataRaw, cachedVersionsRaw, storedFetchedAt] =
+        const [cachedDataRaw, storedFetchedAt] =
           await Promise.all([
             AsyncStorage.getItem(BOOTSTRAP_STORAGE_KEY),
-            AsyncStorage.getItem(BOOTSTRAP_VERSIONS_KEY),
             AsyncStorage.getItem(BOOTSTRAP_FETCHED_KEY),
           ]);
 
         const cachedData: BootstrapData | null = cachedDataRaw
           ? JSON.parse(cachedDataRaw)
           : null;
-
-        const cachedVersions: EndpointVersions = cachedVersionsRaw
-          ? JSON.parse(cachedVersionsRaw)
-          : {
-              layout: '',
-              screenConfigs: '',
-              presets: '',
-              contentRoutes: '',
-              cardStyles: '',
-            };
 
         const now = Date.now();
         const lastFetchedAt = storedFetchedAt ? Number(storedFetchedAt) : 0;
@@ -130,145 +121,45 @@ const BootstrapProcess = ({ navigation }: any) => {
         setLoadingStatus('Checking for updates...');
 
         const layoutUrl = `${baseUrl}roku-apps?populate=all&filters[tenant][code][$eq]=${tenantCode}&filters[version][$eq]=${versionNumber}`;
+        console.log('📡 Fetching Layout URL:', layoutUrl);
+        
         const layoutRes = await fetch(layoutUrl);
         const layoutJson = await layoutRes.json();
-
+        console.log('📦 Layout Data:', layoutJson.data);
+console.log("layoutJson: ", layoutJson);
         const layoutId = layoutJson.data?.[0]?.layout?.documentId;
         const rawMenuConfig = layoutJson.data?.[0]?.layout?.roku_menu;
         const layoutUpdatedAt = layoutJson.data?.[0]?.layout?.updatedAt ?? '';
 
         if (!layoutId) throw new Error('Layout ID not found in API response');
 
-        // ── 4. Fetch updatedAt metadata from all endpoints in parallel ────────
-        //       Uses sort=updatedAt:desc & limit=1 to efficiently get the
-        //       latest timestamp across all items without fetching full data.
-        setLoadingStatus('Checking endpoint versions...');
-
-        const metaParams = `sort[0]=updatedAt:desc&pagination[limit]=1&fields[0]=updatedAt&fields[1]=publishedAt`;
-        const [screensMeta, presetsMeta, routesMeta, stylesMeta] =
-          await Promise.all([
-            fetch(
-              `${baseUrl}roku-screens?${metaParams}&filters[layout][documentId][$eq]=${layoutId}`,
-            ).then(r => r.json()),
-            fetch(
-              `${baseUrl}roku-presets?${metaParams}&filters[layout][documentId][$eq]=${layoutId}`,
-            ).then(r => r.json()),
-            fetch(
-              `${baseUrl}roku-content-type-routers?${metaParams}&filters[layout][documentId][$eq]=${layoutId}`,
-            ).then(r => r.json()),
-            fetch(
-              `${baseUrl}roku-card-styles?${metaParams}&filters[layout][documentId][$eq]=${layoutId}`,
-            ).then(r => r.json()),
-          ]);
-
-        // Find the latest updatedAt per endpoint
-        const getLatest = (json: any): string => {
-          const item = json.data?.[0];
-          if (!item) return '';
-          return item.updatedAt ?? item.publishedAt ?? '';
-        };
-
-        const freshVersions: EndpointVersions = {
-          layout: layoutUpdatedAt,
-          screenConfigs: getLatest(screensMeta),
-          presets: getLatest(presetsMeta),
-          contentRoutes: getLatest(routesMeta),
-          cardStyles: getLatest(stylesMeta),
-        };
-
-       
-
-        // ── 5. Determine which endpoints actually changed ─────────────────────
-        const changed = {
-          layout: freshVersions.layout !== cachedVersions.layout,
-          screenConfigs:
-            freshVersions.screenConfigs !== cachedVersions.screenConfigs,
-          presets: freshVersions.presets !== cachedVersions.presets,
-          contentRoutes:
-            freshVersions.contentRoutes !== cachedVersions.contentRoutes,
-          cardStyles: freshVersions.cardStyles !== cachedVersions.cardStyles,
-        };
-
-        const anyChanged = Object.values(changed).some(Boolean);
-
-        // ── 6. Nothing changed — use cache, bump TTL ─────────────────────────
-        if (!anyChanged && cachedData) {
-          console.log('✅ All endpoints up-to-date — loading from cache', cachedData.cardStyles);
-          await AsyncStorage.setItem(BOOTSTRAP_FETCHED_KEY, String(now));
-          setBootstrapData(cachedData);
-          setLoadingStatus('Complete!');
-          setTimeout(() => navigation.replace('Home'), 500);
-          return;
-        }
-        // ── 7. Fetch only changed endpoints with full data ────────────────────
+        // ── 4. Fetch full data from all endpoints in parallel ────────────────
         setLoadingStatus('Loading updated resources...');
 
         const fullParams = `populate=all&filters[layout][documentId][$eq]=${layoutId}`;
 
         const [screensRes, presetsRes, routesRes, stylesRes] =
           await Promise.all([
-            changed.screenConfigs
-              ? fetchEndpoint(`${baseUrl}roku-screens?${fullParams}`)
-              : Promise.resolve({
-                  data: null,
-                  latestUpdatedAt: cachedVersions.screenConfigs,
-                }),
-            changed.presets
-              ? fetchEndpoint(`${baseUrl}roku-presets?${fullParams}`)
-              : Promise.resolve({
-                  data: null,
-                  latestUpdatedAt: cachedVersions.presets,
-                }),
-            changed.contentRoutes
-              ? fetchEndpoint(
-                  `${baseUrl}roku-content-type-routers?${fullParams}`,
-                )
-              : Promise.resolve({
-                  data: null,
-                  latestUpdatedAt: cachedVersions.contentRoutes,
-                }),
-            changed.cardStyles
-              ? fetchEndpoint(`${baseUrl}roku-card-styles?${fullParams}`)
-              : Promise.resolve({
-                  data: null,
-                  latestUpdatedAt: cachedVersions.cardStyles,
-                }),
+            fetchEndpoint(`${baseUrl}roku-screens?${fullParams}`),
+            fetchEndpoint(`${baseUrl}roku-presets?${fullParams}`),
+            fetchEndpoint(`${baseUrl}roku-content-type-routers?${fullParams}`),
+            fetchEndpoint(`${baseUrl}roku-card-styles?${fullParams}`)
           ]);
 
-        
-
-        // ── 8. Merge: fresh data where changed, cached data where unchanged ───
+        // ── 5. Parse and merge data ──────────────────────────────────────────
         const bootstrapData: BootstrapData = {
           layoutId,
-          cardStyles: stylesRes.data
-            ? parseCardStyles(stylesRes.data)
-            : cachedData?.cardStyles ?? {},
-          screenConfigs: screensRes.data
-            ? parseScreenConfigs(screensRes.data)
-            : cachedData?.screenConfigs ?? {},
-          screenPresets: presetsRes.data
-            ? parseScreenPresets(presetsRes.data)
-            : cachedData?.screenPresets ?? {},
-          contentTypeRoutes: routesRes.data
-            ? parseContentTypeRoutes(routesRes.data)
-            : cachedData?.contentTypeRoutes ?? {},
-          topMenuConfig: changed.layout
-            ? parseMenuConfig(rawMenuConfig)
-            : cachedData?.topMenuConfig ?? parseMenuConfig(rawMenuConfig),
+          cardStyles: parseCardStyles(stylesRes.data),
+          screenConfigs: parseScreenConfigs(screensRes.data),
+          screenPresets: parseScreenPresets(presetsRes.data),
+          contentTypeRoutes: parseContentTypeRoutes(routesRes.data),
+          topMenuConfig: parseMenuConfig(rawMenuConfig),
           lastUpdated: new Date().toISOString(),
         };
-        console.log('🎨 Card Styles:', stylesRes.data);
 
-        // ── 9. Persist updated data + versions + timestamp ───────────────────
+        // ── 6. Persist updated data + timestamp ──────────────────────────────
         await Promise.all([
-          AsyncStorage.setItem(
-            BOOTSTRAP_STORAGE_KEY,
-            JSON.stringify(bootstrapData),
-          ),
-          AsyncStorage.setItem(
-            BOOTSTRAP_VERSIONS_KEY,
-            JSON.stringify(freshVersions),
-          ),
+          AsyncStorage.setItem(BOOTSTRAP_STORAGE_KEY, JSON.stringify(bootstrapData)),
           AsyncStorage.setItem(BOOTSTRAP_FETCHED_KEY, String(now)),
         ]);
 

@@ -1,5 +1,16 @@
+import { Dimensions } from 'react-native';
 import { CardAspectRatio } from '../types/commontypes';
 import { getValueByPath } from './ObjectUtils';
+
+/**
+ * Scales a layout dimension (designed for a 1920x1080 canvas) 
+ * into the device's native logical pixels.
+ */
+export function scaleToLogical(value: number | null | undefined): number {
+  if (value == null) return 0;
+  const { width } = Dimensions.get('window');
+  return Math.round(value * (width / 1920));
+}
 
 export interface CardStyleBase {
   aspect_ratio?: CardAspectRatio | null;
@@ -157,6 +168,7 @@ export function getBorderRadius(
 
   const match = String(radiusStr).match(/size_(\d+)/);
   if (match && match[1]) {
+    console.log("match", match[1]);
     return parseInt(match[1], 10);
   }
 

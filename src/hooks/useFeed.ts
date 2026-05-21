@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Image } from 'react-native';
 
 interface FeedResponse {
   entry?: any[];
@@ -13,7 +14,8 @@ const PAGE_SIZE = 4; // Reveal 4 items at a time for local pagination
  * Reusable hook to fetch feed data from a URL with pagination support.
  * Now supports "Local Pagination" if the API doesn't provide a 'next' link.
  */
-export function useFeed(initialUrl: string | null | undefined, headers?: Record<string, string>) {
+export function useFeed(initialUrl: string | null | undefined, options: { headers?: Record<string, string>, pageSize?: number, itemLimit?: number, prefetchKeys?: string[] } = {}) {
+  const { headers, pageSize = 4, itemLimit = 0, prefetchKeys = [] } = options;
   const [allData, setAllData] = useState<any[]>([]); // Full list of items fetched so far
   const [displayedData, setDisplayedData] = useState<any[]>([]); // Slice of items currently visible
   const [feedTitle, setFeedTitle] = useState<string | null>(null); // Top-level feed title
@@ -22,6 +24,29 @@ export function useFeed(initialUrl: string | null | undefined, headers?: Record<
   const [error, setError] = useState<string | null>(null);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
 
+  const prefetchImages = useCallback(async (items: any[]) => {
+    if (!prefetchKeys.length || !items.length) return;
+    
+    const urlsToPrefetch: string[] = [];
+    items.forEach(item => {
+      const mediaGroup = item?.media_group || [];
+      const imageMediaGroup = mediaGroup.find((group: any) => group?.type === 'image');
+      if (imageMediaGroup?.media_item) {
+        prefetchKeys.forEach(key => {
+          const selectedImage = imageMediaGroup.media_item.find((img: any) => img?.key === key && img?.src);
+          if (selectedImage?.src) {
+            urlsToPrefetch.push(selectedImage.src);
+          }
+        });
+      }
+    });
+
+    if (urlsToPrefetch.length > 0) {
+      console.log(`🖼️ useFeed: Prefetching ${urlsToPrefetch.length} images...`);
+      await Promise.allSettled(urlsToPrefetch.map(url => Image.prefetch(url)));
+    }
+  }, [prefetchKeys]);
+console.log("Prefetch Images",prefetchImages);
   const fetchFeed = useCallback(async (url: string, isAppend: boolean = false) => {
     if (isAppend) {
       setLoadingMore(true);
@@ -55,15 +80,26 @@ export function useFeed(initialUrl: string | null | undefined, headers?: Record<
       }
 
       if (isAppend) {
-        const updatedAll = [...allData, ...newItems];
+        let updatedAll = [...allData, ...newItems];
+        if (itemLimit > 0 && updatedAll.length > itemLimit) {
+          updatedAll = updatedAll.slice(0, itemLimit);
+          setNextUrl(null); // Stop pagination if limit reached
+        }
         setAllData(updatedAll);
+        await prefetchImages(newItems);
         // If we are appending via API, we usually show the whole new page
         setDisplayedData(updatedAll);
         console.log(`✅ Feed Pagination: Appended ${newItems.length} items from API.`);
       } else {
-        setAllData(newItems);
+        let finalItems = newItems;
+        if (itemLimit > 0 && finalItems.length > itemLimit) {
+          finalItems = finalItems.slice(0, itemLimit);
+        }
+        setAllData(finalItems);
+        const initialBatch = finalItems.slice(0, pageSize);
+        await prefetchImages(initialBatch);
         // Start with the first batch (Local Pagination)
-        setDisplayedData(newItems.slice(0, PAGE_SIZE));
+        setDisplayedData(initialBatch);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch feed');
@@ -96,7 +132,7 @@ export function useFeed(initialUrl: string | null | undefined, headers?: Record<
 
     // 2. If no nextUrl, check if we have more local items to reveal
     if (displayedData.length < allData.length) {
-      const nextCount = Math.min(displayedData.length + PAGE_SIZE, allData.length);
+      const nextCount = Math.min(displayedData.length + pageSize, allData.length);
       console.log(`🔄 Feed: Revealing ${nextCount} local items...`);
       setDisplayedData(allData.slice(0, nextCount));
     }

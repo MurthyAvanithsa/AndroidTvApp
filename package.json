@@ -5,7 +5,7 @@
   "strapiConfig": {
     "baseUrl": "https://lifeuistrapi-dev.trilogyapps.com/api/",
     "tenantCode": "TBN",
-    "versionNumber": "0.0.22"
+    "versionNumber": "0.0.1"
   },
   "scripts": {
     "android": "react-native run-android",
