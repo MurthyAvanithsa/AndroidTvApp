@@ -122,11 +122,11 @@ const BootstrapProcess = ({ navigation }: any) => {
 
         const layoutUrl = `${baseUrl}roku-apps?populate=all&filters[tenant][code][$eq]=${tenantCode}&filters[version][$eq]=${versionNumber}`;
         console.log('📡 Fetching Layout URL:', layoutUrl);
-        
+
         const layoutRes = await fetch(layoutUrl);
         const layoutJson = await layoutRes.json();
         console.log('📦 Layout Data:', layoutJson.data);
-console.log("layoutJson: ", layoutJson);
+        console.log("layoutJson: ", layoutJson);
         const layoutId = layoutJson.data?.[0]?.layout?.documentId;
         const rawMenuConfig = layoutJson.data?.[0]?.layout?.roku_menu;
         const layoutUpdatedAt = layoutJson.data?.[0]?.layout?.updatedAt ?? '';
@@ -174,7 +174,7 @@ console.log("layoutJson: ", layoutJson);
         try {
           const cachedDataRaw = await AsyncStorage.getItem(
             BOOTSTRAP_STORAGE_KEY,
-          );    
+          );
           console.log("cached Data : ", cachedDataRaw);
           if (cachedDataRaw) {
             const parsedData = JSON.parse(cachedDataRaw);

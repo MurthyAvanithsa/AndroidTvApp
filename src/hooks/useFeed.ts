@@ -25,19 +25,28 @@ export function useFeed(initialUrl: string | null | undefined, options: { header
   const [nextUrl, setNextUrl] = useState<string | null>(null);
 
   const prefetchImages = useCallback(async (items: any[]) => {
-    if (!prefetchKeys.length || !items.length) return;
+    if (!items.length) return;
     
     const urlsToPrefetch: string[] = [];
     items.forEach(item => {
       const mediaGroup = item?.media_group || [];
       const imageMediaGroup = mediaGroup.find((group: any) => group?.type === 'image');
       if (imageMediaGroup?.media_item) {
-        prefetchKeys.forEach(key => {
-          const selectedImage = imageMediaGroup.media_item.find((img: any) => img?.key === key && img?.src);
-          if (selectedImage?.src) {
-            urlsToPrefetch.push(selectedImage.src);
-          }
-        });
+        if (prefetchKeys && prefetchKeys.length > 0) {
+          prefetchKeys.forEach(key => {
+            const selectedImage = imageMediaGroup.media_item.find((img: any) => img?.key === key && img?.src);
+            if (selectedImage?.src) {
+              urlsToPrefetch.push(selectedImage.src);
+            }
+          });
+        } else {
+          // Fallback: prefetch all images in the media group if no keys are specified
+          imageMediaGroup.media_item.forEach((img: any) => {
+            if (img?.src) {
+              urlsToPrefetch.push(img.src);
+            }
+          });
+        }
       }
     });
 
@@ -97,7 +106,7 @@ console.log("Prefetch Images",prefetchImages);
         }
         setAllData(finalItems);
         const initialBatch = finalItems.slice(0, pageSize);
-        await prefetchImages(initialBatch);
+        await prefetchImages(finalItems);
         // Start with the first batch (Local Pagination)
         setDisplayedData(initialBatch);
       }

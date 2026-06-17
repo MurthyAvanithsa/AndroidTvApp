@@ -20,7 +20,7 @@ export default function HorizontalList({ config, hasTVPreferredFocus, componentN
     // Featured rails and Inline features should default to 1 card per view (full width) if not specified
     const isFullWidthRail = componentName === 'FeaturedHomeRail' || componentName === 'FeaturedCarousel' || componentName === 'InlineFeature';
     const cellsPerView: number = config.cells_per_view ?? (isFullWidthRail ? 1 : 3);
-    
+
     const cellGap: number = config.cell_gap ?? 20;
     const translationLeft: number = config.list_translation_left ?? 0;
     const peekOffset: number = config.peek_offset ?? 0;
@@ -30,14 +30,14 @@ export default function HorizontalList({ config, hasTVPreferredFocus, componentN
       config.card_style?.card_type_1?.aspect_ratio || config.card_style?.card_type_2?.aspect_ratio ||
       config.card_style?.aspect_ratio ||
       'aspect_16:9';
-    console.log("aspectRatioStr: ", aspectRatioStr);
+    // console.log("aspectRatioStr: ", aspectRatioStr);
     const match = aspectRatioStr.match(/(\d+)[x:](\d+)/);
     const arW = match ? parseInt(match[1], 10) : 16;
     const arH = match ? parseInt(match[2], 10) : 9;
 
     const totalAvailableWidth = screenWidth - translationLeft;
     const availableWidth = totalAvailableWidth - (cellsPerView * itemSpacing) - (3 * peekOffset);
-    
+
     const cardWidth = availableWidth / cellsPerView;
     let cardHeight = cardWidth * (arH / arW);
 
@@ -75,19 +75,16 @@ export default function HorizontalList({ config, hasTVPreferredFocus, componentN
       return () => clearInterval(interval);
     }
   }, [config.enable_auto_scroll, config.auto_scroll_interval, data, isFocused]);
-  // if (config.name == "FeaturedHomeRail") {
-  //   console.log('HorizontalList config:', config.card_style);
-  //   console.log('HorizontalList data:', data);
-  // }
 
-  const renderFooter = () => {
-    if (!hasMore || !loadingMore) return null;
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#ffffff" />
-      </View>
-    );
-  };
+
+  // const renderFooter = () => {
+  //   if (!hasMore || !loadingMore) return null;
+  //   return (
+  //     <View style={styles.footerLoader}>
+  //       <ActivityIndicator size="small" color="#ffffff" />
+  //     </View>
+  //   );
+  // };
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
     const cardStyle = config.card_style;
@@ -97,9 +94,9 @@ export default function HorizontalList({ config, hasTVPreferredFocus, componentN
 
     const isFirst = index === 0;
     const isLast = index === data.length - 1;
-    console.log("isLast: ", isLast);
-    console.log("isFirst: ", isFirst);
-    
+    // console.log("isLast: ", isLast);
+    // console.log("isFirst: ", isFirst);
+
     const commonProps = {
       item,
       cardStyleId: styleId,
@@ -155,31 +152,31 @@ export default function HorizontalList({ config, hasTVPreferredFocus, componentN
   if (!data || data.length === 0) {
     return null;
   }
-// console.log("cardHeight: ", cardHeight);
-return(
-    <TVFocusGuideView 
+  // console.log("cardHeight: ", cardHeight);
+  return (
+    <TVFocusGuideView
       autoFocus
       style={styles.container}
     >
-      <View 
+      <View
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
       >
-      {config.enable_title && (
-        <Text style={[
-          styles.title,
-          {
-            color: isFocused ? (config.title_focused_color || '#ffffff') : (config.title_color || '#ffffff'),
-            
-          }
-        ]}>
-          {config.title_use_custom_text
-            ? config.title_custom_text
-            : (feedTitle || config.name || 'List')}
-        </Text>
-      )}
+        {config.enable_title && (
+          <Text style={[
+            styles.title,
+            {
+              color: isFocused ? (config.title_focused_color || '#ffffff') : (config.title_color || '#ffffff'),
 
-      
+            }
+          ]}>
+            {config.title_use_custom_text
+              ? config.title_custom_text
+              : (feedTitle || config.name || 'List')}
+          </Text>
+        )}
+
+
         <FlatList
           ref={flatListRef}
           horizontal
@@ -188,7 +185,7 @@ return(
           renderItem={renderItem}
           onEndReached={hasMore ? loadMore : null}
           onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
+          // ListFooterComponent={renderFooter}
           showsHorizontalScrollIndicator={false}
           removeClippedSubviews={false}
           windowSize={10}
@@ -197,20 +194,20 @@ return(
             // marginTop: 5,
           }}
         />
-      {/* Pagination Dots (Equivalent to applyPaginationDotsStyles) */}
-      {config.enable_pagination_dots && data && (
-        <View style={styles.dotContainer}>
-          {data.slice(0, 10).map((_, i) => (
-            <View 
-              key={i} 
-              style={[
-                styles.dot, 
-                { backgroundColor: i === focusedIndex ? (config.pagination_dots_selected_color || '#ffffff') : (config.pagination_dots_unselected_color || '#666666') }
-              ]} 
-            />
-          ))}
-        </View>
-      )}
+        {/* Pagination Dots (Equivalent to applyPaginationDotsStyles) */}
+        {config.enable_pagination_dots && data && (
+          <View style={styles.dotContainer}>
+            {data.slice(0, 10).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  { backgroundColor: i === focusedIndex ? (config.pagination_dots_selected_color || '#ffffff') : (config.pagination_dots_unselected_color || '#666666') }
+                ]}
+              />
+            ))}
+          </View>
+        )}
       </View>
     </TVFocusGuideView>
   );
@@ -241,7 +238,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    paddingBottom:20
+    paddingBottom: 20
     // paddingHorizontal: 20,
   },
   placeholderCard: {

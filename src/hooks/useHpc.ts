@@ -32,10 +32,10 @@ export function useHpc() {
         console.log(`🌐 HPC: Fetching main feed from ${HPC_URL}...`);
         const response = await fetch(HPC_URL);
         if (!response.ok) throw new Error(`HTTP ${response.status} at ${HPC_URL}`);
-        
+
         const json = await response.json();
         const entries = json.entry || [];
-console.log("entries: ", entries);
+        // log("entries: ", entries);
         const filteredEntries = entries.filter(
           (e: HpcEntry) => !EXCLUDED_PRESET_NAMES.includes(e.preset_name)
         );
@@ -49,7 +49,7 @@ console.log("entries: ", entries);
         // Initially show only the first batch
         setDisplayedData(filteredEntries.slice(0, INITIAL_SIZE));
         console.log(`✅ HPC: Loaded ${filteredEntries.length} rails after filter. Displaying first ${INITIAL_SIZE}.`);
-console.log("displayedData: ", filteredEntries.slice(0, INITIAL_SIZE));
+        // log("displayedData: ", filteredEntries.slice(0, INITIAL_SIZE));
 
       } catch (err: any) {
         setError(err.message || 'Failed to fetch HPC');
@@ -65,7 +65,7 @@ console.log("displayedData: ", filteredEntries.slice(0, INITIAL_SIZE));
     if (loading || loadingMore) return;
 
     setLoadingMore(true);
-    
+
     // Simulate a small delay for smoother UI transition if needed, 
     // or just append immediately.
     setTimeout(() => {
@@ -75,10 +75,10 @@ console.log("displayedData: ", filteredEntries.slice(0, INITIAL_SIZE));
         const nextCount = Math.min(currentCount + INCREMENT_SIZE, allEntries.length);
         console.log(`🔄 HPC: Revealing rails ${currentCount + 1} to ${nextCount}...`);
         return allEntries.slice(0, nextCount);
-        
+
       });
       setLoadingMore(false);
-    }, 100); 
+    }, 100);
   }, [loading, loadingMore, allEntries]);
   return {
     data: displayedData,

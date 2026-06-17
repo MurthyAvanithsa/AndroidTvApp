@@ -47,7 +47,7 @@ export default function GridList({ config }: GridListProps) {
 
     const cardType = cardStyle.card_type;
     const styleId = cardStyle.documentId || cardStyle.id?.toString();
-    console.log("cardWidth:",cardWidth);
+    console.log("cardWidth:", cardWidth);
     switch (cardType) {
       case 'card_type_1':
         return <CardType1 item={item} cardStyleId={styleId} width={cardWidth} />;
@@ -88,12 +88,12 @@ export default function GridList({ config }: GridListProps) {
   }
 
   return (
-    <View style={{marginTop:60, marginLeft:20, marginRight:20}}>
+    <View style={{ marginTop: 60, marginLeft: 20, marginRight: 20 }}>
       {/* Title */}
       {config.enable_title && (
         <Text style={[
-          styles.title, 
-          { 
+          styles.title,
+          {
             color: config.title_color || '#ffffff',
             marginBottom: config.title_translation_bottom ?? 30,
             marginLeft: config.title_translation_left ?? 0,

@@ -17,20 +17,20 @@ export default function Curation() {
   const { data, loading, loadingMore, error, loadMore } = useHpc();
   const { screenPresets } = useStrapiContext();
   console.log('🔑 All Available Strapi Preset Keys:', Object.keys(screenPresets));
-console.log('🔐 HPC Feed Data:', JSON.stringify(data, null, 2));
+  console.log('🔐 HPC Feed Data:', JSON.stringify(data, null, 2));
   const renderItem = ({ item }: { item: any }) => {
     const { preset_name, feed_url } = item;
-// console.log("preset_name: ",preset_name);
+    // console.log("preset_name: ",preset_name);
     // Normalize preset key (matches parseScreenPresets key logic)
     // e.g. "16x9-NoTitle" → "16x9NoTitle"
     const basePresetKey = preset_name?.replace(/-([a-zA-Z0-9])/g, (_: string, c: string) =>
       c.toUpperCase()
     );
-    
+
     // First try the exact preset name, then try falling back to the Android-specific preset name
     const presetKey = screenPresets[basePresetKey] ? basePresetKey : `${basePresetKey}Android`;
     const preset = screenPresets[presetKey];
-// console.log("preset: ",preset); 
+    // console.log("preset: ",preset); 
     if (!preset) {
       console.warn(`⚠️ Curation: No preset found for "${preset_name}" (key: "${presetKey}")`);
       return null;

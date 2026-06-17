@@ -9,6 +9,7 @@ import type {
   ContentTypeRoute,
   TopMenuConfig,
 } from '../utils/BootstrapUtils';
+import type { Entry } from '../types/commontypes';
 
 // ─── Context Shape ────────────────────────────────────────────────────────────
 
@@ -22,6 +23,9 @@ interface StrapiContextType {
   screenPresets: Record<string, ScreenPreset>;
   contentTypeRoutes: Record<string, ContentTypeRoute>;
   topMenuConfig: TopMenuConfig | null;
+
+  currentActiveItem: Entry | null;
+  setCurrentActiveItem: (item: Entry | null) => void;
 }
 
 // ─── Context & Hook ───────────────────────────────────────────────────────────
@@ -41,6 +45,7 @@ export const StrapiProvider = ({ children }: { children: ReactNode }) => {
   const [bootstrapData, setBootstrapDataState] = useState<BootstrapData | null>(
     null,
   );
+  const [currentActiveItem, setCurrentActiveItem] = useState<Entry | null>(null);
 
   const setBootstrapData = (data: BootstrapData) => {
     setBootstrapDataState(data);
@@ -54,6 +59,8 @@ export const StrapiProvider = ({ children }: { children: ReactNode }) => {
     screenPresets: bootstrapData?.screenPresets ?? {},
     contentTypeRoutes: bootstrapData?.contentTypeRoutes ?? {},
     topMenuConfig: bootstrapData?.topMenuConfig ?? null,
+    currentActiveItem,
+    setCurrentActiveItem,
   };
 
   return (

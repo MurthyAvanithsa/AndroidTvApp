@@ -16,6 +16,7 @@ import {
   scaleToLogical 
 } from "../../utils/CardHelpers";
 import { getStringByPath } from "../../utils/ObjectUtils";
+import { useNavigation } from '@react-navigation/native';
 
 interface CardType2Props {
   item: any;
@@ -28,7 +29,8 @@ interface CardType2Props {
 }
 
 export default function CardType2({ item, cardStyleId, width: overrideWidth, presetName, isFirst, isLast, onFocus }: CardType2Props) {
-  const { cardStyles } = useStrapiContext();
+  const { cardStyles, setCurrentActiveItem } = useStrapiContext();
+  const navigation = useNavigation<any>();
   const [isFocused, setIsFocused] = useState(false);
   const cardRef = useRef(null);
   const [node, setNode] = useState<number | undefined>(undefined);
@@ -93,7 +95,10 @@ return (
         onFocus?.();
       }}
       onBlur={() => setIsFocused(false)}
-      // onPress={handlePress}
+      onPress={() => {
+        setCurrentActiveItem(item);
+        navigation.navigate('ScreenComposition');
+      }}
       // Roku logic: Prevents focus from leaving row bounds incorrectly
       nextFocusLeft={isFirst ? node : undefined}
       nextFocusRight={isLast ? node : undefined}

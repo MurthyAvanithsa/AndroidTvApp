@@ -3,6 +3,7 @@ import { Text, View, Image, StyleSheet, Pressable, findNodeHandle } from "react-
 import { useStrapiContext } from "../../context/StrapiContext";
 import { calculateCardDimensions, getImageFromMediaGroup, parseAspectRatio, parseBorderRadius, scaleToLogical } from "../../utils/CardHelpers";
 import { CardType1Config } from "./CardType1Config";
+import { useNavigation } from '@react-navigation/native';
 
 interface CardType1Props {
   item: any;
@@ -16,7 +17,8 @@ interface CardType1Props {
 }
 
 export default function CardType1({ item, cardStyleId, width: overrideWidth, presetName, isFirst, isLast, onFocus, hasTVPreferredFocus }: CardType1Props) {
-  const { cardStyles } = useStrapiContext();
+  const { cardStyles, setCurrentActiveItem } = useStrapiContext();
+  const navigation = useNavigation<any>();
   const cardRef = useRef(null);
   const rawStyle = cardStyles[cardStyleId];
   const [isFocused, setIsFocused] = useState(false);
@@ -30,12 +32,8 @@ export default function CardType1({ item, cardStyleId, width: overrideWidth, pre
   }, []);
 
   if (!rawStyle) {
-    console.warn(`⚠️ CardStyle not found for ID: ${cardStyleId}`);
-    return (
-      <View style={styles.fallback}>
-        <Text style={{ color: '#fff' }}>Style {cardStyleId} missing</Text>
-      </View>
-    );
+    console.log("CardType1 style not found: ", cardStyleId);
+    return null;
   }
 
   const cardStyle = (rawStyle.card_type_1 || rawStyle) as CardType1Config;
@@ -60,7 +58,10 @@ export default function CardType1({ item, cardStyleId, width: overrideWidth, pre
               onFocus?.();
             }}
             onBlur={() => setIsFocused(false)}
-            // onPress={handlePress}
+            onPress={() => {
+              setCurrentActiveItem(item);
+              navigation.navigate('ScreenComposition');
+            }}
             // Roku logic: Prevents focus from leaving row bounds incorrectly
             nextFocusLeft={isFirst ? node : undefined}
             nextFocusRight={isLast ? node : undefined}

@@ -1,4 +1,4 @@
-import { Dimensions } from 'react-native';
+import { Dimensions, Image } from 'react-native';
 import { CardAspectRatio } from '../types/commontypes';
 import { getValueByPath } from './ObjectUtils';
 
@@ -26,17 +26,17 @@ export interface CardStyleBase {
  */
 export function parseAspectRatio(ratioStr: string | null | undefined): number {
   if (!ratioStr) return 16 / 9; // Default to 16:9
-  
+
   // Clean up prefixes like "aspect_" or "aspectRatio_"
   const cleanStr = ratioStr.replace('aspectRatio_', '').replace('aspect_', '');
   const parts = cleanStr.split(':');
-  
+
   if (parts.length === 2) {
     const w = parseFloat(parts[0]);
     const h = parseFloat(parts[1]);
     if (w > 0 && h > 0) return w / h;
   }
-  
+
   return 16 / 9;
 }
 
@@ -46,15 +46,15 @@ export function parseAspectRatio(ratioStr: string | null | undefined): number {
  */
 export function calculateCardDimensions(style: CardStyleBase, targetWidth?: number) {
   const ratio = parseAspectRatio(style.aspect_ratio);
-  
+
   // Precedence: Target width (from Grid/List) > Background width > Image width > Fallback (400)
   const width = targetWidth || style.background_rectangle_width || style.image_1_width || 400;
-  
+
   // Height is always driven by the aspect ratio unless background_rectangle_height is explicitly forced
   const height = style.background_rectangle_height || (width / ratio);
-  
+
   return { width, height, ratio };
-} 
+}
 
 export function parseBorderRadius(
   borderRadius: number | string | null | undefined
@@ -130,7 +130,7 @@ export function getImageFromMediaGroup(
  */
 export const isContentLocked = (entry: any, dataKey: string): boolean => {
   if (!entry || !dataKey) return false;
-  
+
   const rawValue = getValueByPath(entry, dataKey);
   const value = String(rawValue ?? '').toLowerCase();
 
@@ -168,10 +168,34 @@ export function getBorderRadius(
 
   const match = String(radiusStr).match(/size_(\d+)/);
   if (match && match[1]) {
-    console.log("match", match[1]);
+    // console.log("match", match[1]);
     return parseInt(match[1], 10);
   }
 
   const fallbackMatch = String(radiusStr).match(/(\d+)/);
   return fallbackMatch ? parseInt(fallbackMatch[0], 10) : defaultValue;
+}
+
+/**
+ * Prefetches all images found inside DSP entry media_groups
+ */
+export async function prefetchImagesForEntries(entries: any[]) {
+  if (!entries || !entries.length) return;
+  const urls: string[] = [];
+  entries.forEach(entry => {
+    const mediaGroup = entry?.media_group || [];
+    const imageMediaGroup = mediaGroup.find((group: any) => group?.type === 'image');
+    if (imageMediaGroup?.media_item) {
+      imageMediaGroup.media_item.forEach((img: any) => {
+        if (img?.src) {
+          urls.push(img.src);
+        }
+      });
+    }
+  });
+
+  if (urls.length > 0) {
+    console.log(`🖼️ prefetchImagesForEntries: Prefetching ${urls.length} images...`);
+    await Promise.allSettled(urls.map(url => Image.prefetch(url)));
+  }
 }

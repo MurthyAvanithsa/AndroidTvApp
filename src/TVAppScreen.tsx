@@ -4,12 +4,15 @@ import CardType1 from './components/Cards/CardType1';
 import CardType2 from './components/Cards/CardType2';
 import HorizontalList from './components/HorizontalList/HorizontalList';
 import { MOCK_HLIST_CONFIG, MOCK_GRID_CONFIG } from './mockData';
+import { useStrapiContext } from './context/StrapiContext';
+// import { prefetchImagesForEntries } from './utils/CardHelpers';
 
 
 export default function TVAppScreen({ navigation }: any) {
   const [item1, setItem1] = useState<any>(null);
   const [item2, setItem2] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { currentActiveItem } = useStrapiContext();
 
   useEffect(() => {
     async function load() {
@@ -20,6 +23,13 @@ export default function TVAppScreen({ navigation }: any) {
         ]);
         const d1 = await r1.json();
         const d2 = await r2.json();
+
+        // Prefetch images for the cards in the background
+        // const entriesToPrefetch = [];
+        // if (d1.entry) entriesToPrefetch.push(...d1.entry);
+        // if (d2.entry) entriesToPrefetch.push(...d2.entry);
+        // prefetchImagesForEntries(entriesToPrefetch);
+
         setItem1(d1.entry);
         setItem2(d2.entry);
       } catch (e) {
@@ -41,14 +51,19 @@ export default function TVAppScreen({ navigation }: any) {
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={{ flexDirection: 'row', gap: 20, width: '100%', paddingHorizontal: 20 }}>
+      <View style={{ flexDirection: 'row', gap: 20, width: '100%', paddingHorizontal: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <Text style={styles.title}>TVApp</Text>
-        
-        <Pressable 
+        {currentActiveItem && (
+          <Text style={{ color: '#FF9500', fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 40 }}>
+            Active: {currentActiveItem.title}
+          </Text>
+        )}
+
+        <Pressable
           onPress={() => (navigation as any).navigate('HomeFeed')}
           style={({ focused }) => [
             styles.navButton,
-            { 
+            {
               backgroundColor: focused ? '#FF9500' : '#333',
               borderColor: focused ? '#ffffff' : 'transparent',
               transform: [{ scale: focused ? 1.1 : 1 }]
@@ -58,11 +73,11 @@ export default function TVAppScreen({ navigation }: any) {
           <Text style={styles.navButtonText}>Go to Home Feed →</Text>
         </Pressable>
 
-        <Pressable 
+        <Pressable
           onPress={() => (navigation as any).navigate('Grid')}
           style={({ focused }) => [
             styles.navButton,
-            { 
+            {
               backgroundColor: focused ? '#007AFF' : '#333',
               borderColor: focused ? '#ffffff' : 'transparent',
               transform: [{ scale: focused ? 1.1 : 1 }]
@@ -72,7 +87,7 @@ export default function TVAppScreen({ navigation }: any) {
           <Text style={styles.navButtonText}>Go to Grid →</Text>
         </Pressable>
       </View>
-      
+
       {/* <View style={styles.cardSection}>
         <Text style={styles.sectionHeader}>Card Type 1</Text>
         {item1 && item1.length > 0 ? (
